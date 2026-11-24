@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout source
@@ -19,11 +19,29 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK
+      - name: Prepare Android SDK
+        shell: bash
         run: |
           echo "Android SDK: $ANDROID_HOME"
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+          if [ -f "$ANDROID_HOME/platforms/android-35/android.jar" ] && [ -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            echo "Required Android SDK already installed."
+          else
+            SDKMANAGER=$(find "$ANDROID_HOME" -type f -name sdkmanager | head -n 1)
+
+            if [ -z "$SDKMANAGER" ]; then
+              echo "Downloading Android command-line tools"
+              curl -fL --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/android-tools.zip
+              unzip -q /tmp/android-tools.zip -d /tmp/android-tools
+              mkdir -p "$ANDROID_HOME/cmdline-tools"
+              mv /tmp/android-tools/cmdline-tools "$ANDROID_HOME/cmdline-tools/manual"
+              SDKMANAGER="$ANDROID_HOME/cmdline-tools/manual/bin/sdkmanager"
+            fi
+
+            yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses > /dev/null || true
+
+            "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.0"
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
